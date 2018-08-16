@@ -38,7 +38,7 @@ def _get_leak(df, cols,extra_feats, lag=0):
 
     return d1.merge(d5, how='left', on='key').pred.fillna(0)
 
-def compiled_leak_result(cols):
+def compiled_leak_result(cols, train, transact_cols, l, y):
 
     max_nlags = len(cols)-2
     train_leak = train[["ID", "target"] + cols]
@@ -130,7 +130,7 @@ def main():
     l.append(pattern_3160000.columns.values.tolist())
     l.append(pattern_3255483.columns.values.tolist())
 
-    train_leak, result = compiled_leak_result(cols)
+    train_leak, result = compiled_leak_result(cols, train, transact_cols, l, y)
     result = pd.DataFrame.from_dict(result, orient='columns')
 
     result.to_csv('train_leaky_stat.csv', index=False)
