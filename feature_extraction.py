@@ -53,16 +53,13 @@ def _get_leak(df, cols, extra_feats, lag=0):
         f2 += ef[(lag+2):]
 
     d1 = df[f1].apply(tuple, axis=1).to_frame().rename(columns={0: 'key'})
-    d1.to_csv('extra_d1.csv')
     d2 = df[f2].apply(tuple, axis=1).to_frame().rename(columns={0: 'key'})
 
     d2['pred'] = df[cols[lag]]
     d3 = d2[~d2.duplicated(['key'], keep=False)]
     d4 = d1[~d1.duplicated(['key'], keep=False)]
     d5 = d4.merge(d3, how='inner', on='key')
-
     d6 = d1.merge(d5, how='left', on='key')
-    d6.to_csv('extra_d6.csv')
 
     return d1.merge(d5, how='left', on='key').pred.fillna(0)
 
@@ -81,7 +78,7 @@ def compiled_leak_result(cols, df, transact_cols, l, y):
         c = "leaked_target_"+str(i)
         print('Processing lag', i)
 
-        df_leak[c] = _get_leak(df, cols,l, i)
+        df_leak[c] = _get_leak(df, cols, l, i)
         leaky_cols.append(c)
 
         df_leak = df_leak.set_index("ID")[leaky_cols+["compiled_leak", "nonzero_mean"]]
@@ -128,9 +125,8 @@ def main():
             '58232a6fb', '1702b5bf0', '324921c7b', '62e59a501', '2ec5b290f', '241f0f867',
             'fb49e4212', '66ace2992', 'f74e8f13d', '5c6487af1', '963a49cdc', '26fc93eb7',
             '1931ccfdd', '703885424', '70feb1494', '491b9ee45', '23310aa6f', 'e176a204a',
-            '6619d81fc', '1db387535',
-            'fc99f9426', '91f701ba2', '0572565c2', '190db8488', 'adb64ff71', 'c47340d97', 'c5a231d81', '0ff32eb98'
-           ]
+            '6619d81fc', '1db387535', 'fc99f9426', '91f701ba2', '0572565c2', '190db8488',
+            'adb64ff71', 'c47340d97', 'c5a231d81', '0ff32eb98']
 
     pattern_1964666 = pd.read_csv('pattern_1964666.66.csv')
     pattern_1166666 = pd.read_csv('pattern_1166666.66.csv')
@@ -173,20 +169,19 @@ def main():
     test_leak, test_result = compiled_leak_result(cols, test, transact_cols, l, valY)
     test_result = pd.DataFrame.from_dict(test_result, orient='columns')
 
+    # get submission data
+    test_leak = rewrite_compiled_leak(test_leak, best_lag)
+    test_leak.loc[test_leak["compiled_leak"]==0, "compiled_leak"] = test_leak.loc[test_leak["compiled_leak"]==0, "nonzero_mean"]
+
     test_result.to_csv('test_leaky_stat.csv', index=False)
     test_leak.to_csv('test_leak.csv')
 
-    # get submission data
-    test_leak = rewrite_compiled_leak(test_leak, best_lag)
-
     test_res = test_leak[leaky_cols+['compiled_leak']].replace(0.0, np.nan)
-
-    test_leak.loc[test_leak["compiled_leak"]==0, "compiled_leak"] = test_leak.loc[test_leak["compiled_leak"]==0, "nonzero_mean"]
 
     # submission
     sub = test[["ID"]]
     sub["target"] = test_leak["compiled_leak"]
-    sub.to_csv("baseline_sub_lag_{best_lag}.csv", index=False)
+    sub.to_csv("submission_baseline.csv", index=False)
 
     print(sub)
 

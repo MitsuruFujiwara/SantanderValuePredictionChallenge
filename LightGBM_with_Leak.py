@@ -21,14 +21,6 @@ def timer(title):
     yield
     print("{} - done in {:.0f}s".format(title, time.time() - t0))
 
-def getLeakCol(data):
-    cols = [c for c in data.columns if c not in ['ID', 'target', 'index']]
-    for c in cols:
-        leak1 = np.sum((data[c]==data['target']).astype(int))
-        leak2 = np.sum((((data[c] - data['target']) / data['target']) < 0.05).astype(int))
-        if leak1 > 30 and leak2 > 3500:
-            yield c
-
 def display_importances(feature_importance_df_, outputpath, csv_outputpath):
     cols = feature_importance_df_[["feature", "importance"]].groupby("feature").mean().sort_values(by="importance", ascending=False)[:40].index
     best_features = feature_importance_df_.loc[feature_importance_df_.feature.isin(cols)]
@@ -45,18 +37,16 @@ def display_importances(feature_importance_df_, outputpath, csv_outputpath):
 
 def getNewDF(num_rows = None):
     # load csv files
-    train = pd.read_csv('train.csv', nrows = num_rows)
-    test = pd.read_csv('test.csv', nrows = num_rows)
-    print("Train samples: {}, test samples: {}".format(len(train), len(test)))
+    df = pd.read_csv('train_leak.csv', nrows = num_rows, index_col=0)
+    test_df = pd.read_csv('test_leak.csv', nrows = num_rows, index_col=0)
+    test_df['target'] = np.nan
+    feats = [f for f in df.columns if f not in ['ID', 'target']]
 
-    # get leak cols
-    leak_col = list(getLeakCol(train))
-    print("Number of Leak Cols:", len(leak_col))
+    print("Train samples: {}, test samples: {}".format(len(df), len(test_df)))
 
-    # get new train & test data
-    train = train[leak_col +  ['ID', 'target']]
-    test = test[leak_col +  ['ID']]
+    df = df.append(test_df).reset_index()
 
+    """
     # add new features1 # https://www.kaggle.com/johnfarrell/baseline-with-lag-select-fake-rows-dropped
     train["nz_mean"] = train[leak_col].apply(lambda x: x[x!=0].mean(), axis=1)
     train["nz_max"] = train[leak_col].apply(lambda x: x[x!=0].max(), axis=1)
@@ -79,12 +69,14 @@ def getNewDF(num_rows = None):
         train['index'+str(i)] = ((train.index + 2) % i == 0).astype(int)
         test['index'+str(i)] = ((test.index + 2) % i == 0).astype(int)
 
+    # replace zero value as nan
+    train = train.replace(0, np.nan)
+    test = test.replace(0, np.nan)
+
     # concat train & test
     df = pd.concat((train, test), axis=0, ignore_index=True)
-    del train, test
-
-    # replace zero value as nan
-    df = df.replace(0, np.nan)
+    """
+    del test_df
 
     return df
 
@@ -108,7 +100,7 @@ def kfold_lightgbm(df, num_folds, stratified = False, debug= False):
     oof_preds = np.zeros(train_df.shape[0])
     sub_preds = np.zeros(test_df.shape[0])
     feature_importance_df = pd.DataFrame()
-    feats = [f for f in train_df.columns if f not in ['ID', 'target', 'index']]
+    feats = [f for f in train_df.columns if f not in ['ID', 'target']]
 
     # k-fold cross validation
     for n_fold, (train_idx, valid_idx) in enumerate(folds.split(train_df[feats], train_df['target'])):
@@ -160,7 +152,7 @@ def kfold_lightgbm(df, num_folds, stratified = False, debug= False):
         fold_importance_df["importance"] = clf.feature_importance(importance_type='gain', iteration=clf.best_iteration)
         fold_importance_df["fold"] = n_fold + 1
         feature_importance_df = pd.concat([feature_importance_df, fold_importance_df], axis=0)
-        print('Fold %2d RMSE : %.6f' % (n_fold + 1, np.sqrt(mean_squared_error(np.expm1(valid_y), oof_preds[valid_idx]))))
+        print('Fold %2d RMSE : %.6f' % (n_fold + 1, np.sqrt(mean_squared_error(valid_y, np.log1p(oof_preds[valid_idx])))))
         del clf, train_x, train_y, valid_x, valid_y
         gc.collect()
 
