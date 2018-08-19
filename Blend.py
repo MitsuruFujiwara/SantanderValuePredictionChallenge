@@ -23,14 +23,14 @@ def main():
 
     # find best weights
     rmse_bst = 5.0
-    for w in np.arange(0,1, 0.001):
+    for w in np.arange(0,1.001, 0.001):
         _pred = w * train_df['lgbm'] + (1.0-w) * train_df['xgb']
         _rmse = np.sqrt(mean_squared_error(np.log1p(train_df['target']), np.log1p(_pred)))
         if _rmse < rmse_bst:
             rmse_bst = _rmse
             w_bst = (w, 1.0-w)
 
-    print(w_bst)
+    print("best w: {}, best rmse: {}".format(w_bst, rmse_bst))
 
     # take average of each predicted values
     sub['lgbm'] = sub_lgbm['target']
