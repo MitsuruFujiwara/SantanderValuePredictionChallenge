@@ -170,7 +170,7 @@ def kfold_dnn(df, num_folds, stratified = False, debug= False, use_saved_params=
         model.set_weights(weights)
 
         # compile model
-        model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['mse'])
+        model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mse'])
 
         # training
         history = model.fit(train_x, train_y, nb_epoch=1000, verbose=2,
@@ -201,8 +201,7 @@ def main(debug = False, use_saved_params=False):
         df = getNewDF(num_rows)
         gc.collect()
     with timer("Run DNN with kfold"):
-        feat_importance = kfold_dnn(df, num_folds= 10, stratified=False, debug= debug, use_saved_params=use_saved_params)
-        display_importances(feat_importance ,'xgb_importances.png', 'feature_importance_xgb.csv')
+        kfold_dnn(df, num_folds= 10, stratified=False, debug= debug, use_saved_params=use_saved_params)
 
 if __name__ == '__main__':
     submission_file_name = "submission_dnn.csv"
