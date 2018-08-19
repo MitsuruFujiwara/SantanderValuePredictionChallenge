@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
 
+from feature_extraction import getNewDF
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 @contextmanager
@@ -34,51 +36,6 @@ def display_importances(feature_importance_df_, outputpath, csv_outputpath):
     plt.title('LightGBM Features (avg over folds)')
     plt.tight_layout()
     plt.savefig(outputpath)
-
-def getNewDF(num_rows = None):
-    # load csv files
-    df = pd.read_csv('train_leak.csv', nrows = num_rows, index_col=0)
-    test_df = pd.read_csv('test_leak.csv', nrows = num_rows, index_col=0)
-    test_df['target'] = np.nan
-    feats = [f for f in df.columns if f not in ['ID', 'target']]
-
-    print("Train samples: {}, test samples: {}".format(len(df), len(test_df)))
-
-    df = df.append(test_df).reset_index()
-
-    """
-    # add new features1 # https://www.kaggle.com/johnfarrell/baseline-with-lag-select-fake-rows-dropped
-    train["nz_mean"] = train[leak_col].apply(lambda x: x[x!=0].mean(), axis=1)
-    train["nz_max"] = train[leak_col].apply(lambda x: x[x!=0].max(), axis=1)
-    train["nz_min"] = train[leak_col].apply(lambda x: x[x!=0].min(), axis=1)
-    train["ez"] = train[leak_col].apply(lambda x: len(x[x==0]), axis=1)
-    train["mean"] = train[leak_col].apply(lambda x: x.mean(), axis=1)
-    train["max"] = train[leak_col].apply(lambda x: x.max(), axis=1)
-    train["min"] = train[leak_col].apply(lambda x: x.min(), axis=1)
-
-    test["nz_mean"] = test[leak_col].apply(lambda x: x[x!=0].mean(), axis=1)
-    test["nz_max"] = test[leak_col].apply(lambda x: x[x!=0].max(), axis=1)
-    test["nz_min"] = test[leak_col].apply(lambda x: x[x!=0].min(), axis=1)
-    test["ez"] = test[leak_col].apply(lambda x: len(x[x==0]), axis=1)
-    test["mean"] = test[leak_col].apply(lambda x: x.mean(), axis=1)
-    test["max"] = test[leak_col].apply(lambda x: x.max(), axis=1)
-    test["min"] = test[leak_col].apply(lambda x: x.min(), axis=1)
-
-    # add new features2
-    for i in range(2, 100):
-        train['index'+str(i)] = ((train.index + 2) % i == 0).astype(int)
-        test['index'+str(i)] = ((test.index + 2) % i == 0).astype(int)
-
-    # replace zero value as nan
-    train = train.replace(0, np.nan)
-    test = test.replace(0, np.nan)
-
-    # concat train & test
-    df = pd.concat((train, test), axis=0, ignore_index=True)
-    """
-    del test_df
-
-    return df
 
 def kfold_lightgbm(df, num_folds, stratified = False, debug= False):
 
@@ -119,20 +76,24 @@ def kfold_lightgbm(df, num_folds, stratified = False, debug= False):
                 'device' : 'gpu',
                 'gpu_use_dp':True, #これで倍精度演算できるっぽいです
                 'task': 'train',
-                'learning_rate': 0.02,
-                'max_depth': 7,
                 'boosting': 'gbdt',
                 'objective': 'regression',
                 'metric': 'rmse',
                 'num_iteration': 10000,
-                'is_training_metric': True,
-                'feature_fraction': 0.9,
-                'bagging_fraction': 0.8,
-                'bagging_freq': 5,
+                'learning_rate': 0.01,
+                'num_leaves': 99,
+                'colsample_bytree': 0.9436915866,
+                'subsample': 0.9536069126,
+                'max_depth': 10,
+                'reg_alpha': 8.7511002653,
+                'reg_lambda': 2.2602432486,
+                'min_split_gain': 0.0503376564,
+                'min_child_weight': 45,
+                'min_data_in_leaf': 23,
                 'verbose': -1,
-                'seed':326,
-                'bagging_seed':326,
-                'drop_seed':326
+                'seed':int(2**n_fold),
+                'bagging_seed':int(2**n_fold),
+                'drop_seed':int(2**n_fold)
                 }
 
         clf = lgb.train(
@@ -140,7 +101,7 @@ def kfold_lightgbm(df, num_folds, stratified = False, debug= False):
                         lgb_train,
                         valid_sets=[lgb_train, lgb_test],
                         valid_names=['train', 'test'],
-                        early_stopping_rounds= 200,
+                        early_stopping_rounds= 500,
                         verbose_eval=100
                         )
 
@@ -156,12 +117,16 @@ def kfold_lightgbm(df, num_folds, stratified = False, debug= False):
         del clf, train_x, train_y, valid_x, valid_y
         gc.collect()
 
-    print('Full RMSE score %.6f' % np.sqrt(mean_squared_error(train_df['target'], oof_preds)))
+    print('Full RMSE score %.6f' % np.sqrt(mean_squared_error(np.log1p(train_df['target']), np.log1p(oof_preds))))
 
     if not debug:
-        # output final prediction
+        # 提出データの予測値を保存
         test_df['target'] = sub_preds
         test_df[['ID', 'target']].to_csv(submission_file_name, index= False)
+
+        # out of foldの予測値を保存
+        train_df['OOF_PRED'] = oof_preds
+        train_df[['ID', 'OOF_PRED']].to_csv(oof_file_name, index= False)
 
     return feature_importance_df
 
@@ -171,9 +136,10 @@ def main(debug = False):
         df = getNewDF(num_rows)
         gc.collect()
     with timer("Run LightGBM with kfold"):
-        feat_importance = kfold_lightgbm(df, num_folds= 5, stratified=False, debug= debug)
-        display_importances(feat_importance ,'lgbm_importances.png', 'feature_importance.csv')
+        feat_importance = kfold_lightgbm(df, num_folds= 10, stratified=False, debug= debug)
+        display_importances(feat_importance ,'lgbm_importances.png', 'feature_importance_lgbm.csv')
 
 if __name__ == '__main__':
-    submission_file_name = "submission.csv"
+    submission_file_name = "submission_lgbm.csv"
+    oof_file_name = "oof_lgbm.csv"
     main()

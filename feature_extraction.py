@@ -107,6 +107,61 @@ def compiled_leak_result(cols, df, transact_cols, l, y):
                   leaky_correct=leaky_value_corrects,
                   )
     return df_leak, result
+    
+def getNewDF(num_rows = None):
+    # load csv files
+    df = pd.read_csv('train_leak.csv', nrows = num_rows, index_col=0)
+    test_df = pd.read_csv('test_leak.csv', nrows = num_rows, index_col=0)
+
+    # set test target as nan
+    test_df['target'] = np.nan
+
+    # set columns
+    feats = [f for f in df.columns if f not in ['ID', 'target']]
+    feats_leaked_target = [f for f in df.columns if 'leaked_target_' in f]
+    leak_cols = ['f190486d6', '58e2e02e6', 'eeb9cd3aa', '9fd594eec', '6eef030c1', '15ace8c9f',
+                 'fb0f5dbfe', '58e056e12', '20aa07010', '024c577b9', 'd6bb78916', 'b43a7cfd5',
+                 '58232a6fb', '1702b5bf0', '324921c7b', '62e59a501', '2ec5b290f', '241f0f867',
+                 'fb49e4212', '66ace2992', 'f74e8f13d', '5c6487af1', '963a49cdc', '26fc93eb7',
+                 '1931ccfdd', '703885424', '70feb1494', '491b9ee45', '23310aa6f', 'e176a204a',
+                 '6619d81fc', '1db387535', 'fc99f9426', '91f701ba2', '0572565c2', '190db8488',
+                 'adb64ff71', 'c47340d97', 'c5a231d81', '0ff32eb98']
+
+    print("Train samples: {}, test samples: {}".format(len(df), len(test_df)))
+
+    # merge test & train
+    df = df.append(test_df).reset_index()
+    df = df.replace(0, np.nan)
+
+    # add new features
+    df['LEAK_COL_MEAN'] = df[leak_cols].mean(axis=1)
+    df['LEAK_COL_MAX'] = df[leak_cols].max(axis=1)
+    df['LEAK_COL_MIN'] = df[leak_cols].min(axis=1)
+    df['LEAK_COL_STD'] = df[leak_cols].std(axis=1)
+    df['LEAK_COL_SKEW'] = df[leak_cols].skew(axis=1)
+    df['LEAK_COL_KURT'] = df[leak_cols].kurtosis(axis=1)
+    df['LEAK_COL_SUM'] = df[leak_cols].sum(axis=1)
+    df['LEAK_COL_RANGE'] = df['LEAK_COL_MAX'] - df['LEAK_COL_MIN']
+    df['LEAK_COL_NUM_NAN'] = df[leak_cols].isnull().sum(axis=1)
+    df['LEAK_COL_MAXMIN_RATIO'] = df['LEAK_COL_MAX'] / df['LEAK_COL_MIN']
+
+    df['TARGET_MEAN'] = df[feats_leaked_target].mean(axis=1)
+    df['TARGET_MAX'] = df[feats_leaked_target].max(axis=1)
+    df['TARGET_MIN'] = df[feats_leaked_target].min(axis=1)
+    df['TARGET_STD'] = df[feats_leaked_target].std(axis=1)
+    df['TARGET_SKEW'] = df[feats_leaked_target].skew(axis=1)
+    df['TARGET_KURT'] = df[feats_leaked_target].kurtosis(axis=1)
+    df['TARGET_SUM'] = df[feats_leaked_target].sum(axis=1)
+    df['TARGET_RANGE'] = df['TARGET_MAX'] - df['TARGET_MIN']
+    df['TARGET_NUM_NAN'] = df[feats_leaked_target].isnull().sum(axis=1)
+    df['TARGET_MAXMIN_RATIO'] = df['TARGET_MAX'] / df['TARGET_MIN']
+
+    for i in range(2,100):
+        df['index'+str(i)] = ((df['index'] + 2) % i == 0).astype(int)
+
+    del test_df
+
+    return df
 
 def main():
     train = pd.read_csv("train.csv")
