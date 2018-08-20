@@ -36,7 +36,8 @@ def main():
     sub['lgbm'] = sub_lgbm['target']
     sub['xgb'] = sub_xgb['target']
 
-    sub['target'] = w_bst[0]*sub_lgbm['target'] + w_bst[1]*sub_xgb['target']
+#    sub['target'] = w_bst[0]*sub_lgbm['target'] + w_bst[1]*sub_xgb['target']
+    sub['target'] = 0.5*sub_lgbm['target'] + 0.5*sub_xgb['target']
 
     # save submission file
     sub[['ID', 'target']].to_csv('submission_blend.csv', index= False)
