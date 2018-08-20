@@ -131,7 +131,7 @@ def main(debug = False):
         df = getNewDF(num_rows)
         gc.collect()
     with timer("Run XGBoost with kfold"):
-        feat_importance = kfold_xgboost(df, num_folds= 10, stratified=False, debug= debug)
+        feat_importance = kfold_xgboost(df, num_folds= 20, stratified=True, debug= debug)
         display_importances(feat_importance ,'xgb_importances.png', 'feature_importance_xgb.csv')
 
 if __name__ == '__main__':

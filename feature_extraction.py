@@ -107,7 +107,7 @@ def compiled_leak_result(cols, df, transact_cols, l, y):
                   leaky_correct=leaky_value_corrects,
                   )
     return df_leak, result
-    
+
 def getNewDF(num_rows = None):
     # load csv files
     df = pd.read_csv('train_leak.csv', nrows = num_rows, index_col=0)
@@ -135,6 +135,7 @@ def getNewDF(num_rows = None):
 
     # add new features
     df['LEAK_COL_MEAN'] = df[leak_cols].mean(axis=1)
+    df['LEAK_COL_MEDIAN'] = df[leak_cols].median(axis=1)
     df['LEAK_COL_MAX'] = df[leak_cols].max(axis=1)
     df['LEAK_COL_MIN'] = df[leak_cols].min(axis=1)
     df['LEAK_COL_STD'] = df[leak_cols].std(axis=1)
@@ -146,6 +147,7 @@ def getNewDF(num_rows = None):
     df['LEAK_COL_MAXMIN_RATIO'] = df['LEAK_COL_MAX'] / df['LEAK_COL_MIN']
 
     df['TARGET_MEAN'] = df[feats_leaked_target].mean(axis=1)
+    df['TARGET_MEDIAN'] = df[feats_leaked_target].median(axis=1)
     df['TARGET_MAX'] = df[feats_leaked_target].max(axis=1)
     df['TARGET_MIN'] = df[feats_leaked_target].min(axis=1)
     df['TARGET_STD'] = df[feats_leaked_target].std(axis=1)
